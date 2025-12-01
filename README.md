@@ -1,12 +1,12 @@
 Latest version (v1.2) displays download progress. If you need help setting up Python, refer to my Python set up script in the Ubuntu set up repo.
 
-Download "onion-extract" into your desired folder (e.g. "onion-extract"). Set up Python virtual environment.
+Download "onion-extract" into your desired folder (e.g. "onion-extract"). Set up Python virtual environment (e.g. env).
 ```
-python3 -m venv [venv_name]
+python3 -m venv env
 ```
 Activate virtual enviornment.
 ```
-source [venv_name]/bin/activate
+source env/bin/activate
 ```
 Install required modules.
 ```
