@@ -4,16 +4,16 @@ If you need help setting up Python, refer to my Python set up script in the Ubun
 
 Download "onion-extract" into your desired folder (e.g. "onion-extract"). Set up Python virtual environment.
 
-_python3 -m venv [venv_name]_
+python3 -m venv [venv_name]
 
 Activate Python virtual environment.
 
-_source [venv_name]/bin/activate_
+source [venv_name]/bin/activate
 
 Install using "requirements.txt".
 
-_pip3 install -r requirements.txt_
+pip3 install -r requirements.txt
 
 How to use "onion-extract"?
 
-_python3 -o [download folder name] [onion url]_
+python3 -o [download folder name] [onion url]
