@@ -12,7 +12,6 @@ source [venv_name]/bin/activate
 
 Install using "requirements.txt".
 
-
 pip3 install -r requirements.txt
 
 How to use "onion-extract"?
