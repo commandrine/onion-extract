@@ -5,5 +5,5 @@ Download "onion-extract" into your desired folder (e.g. "onion-extract"). Set up
 python3 -m venv [venv_name]
 source [venv_name]/bin/activate
 pip3 install -r requirements.txt
-python3 -o [download folder name] [onion url]
+python3 onion-extract.py -o [download folder name] [onion url]
 
