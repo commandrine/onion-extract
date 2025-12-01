@@ -4,11 +4,14 @@ Download "onion-extract" into your desired folder (e.g. "onion-extract"). Set up
 python3 -m venv [venv_name]
 
 Activate Python virtual environment.
+
 source [venv_name]/bin/activate
 
 Install using "requirements.txt".
+
 pip3 install -r requirements.txt
 
 How to use "onion-extract"?
+
 python3 -o [download folder name] [onion url]
 
