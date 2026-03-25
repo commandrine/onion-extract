@@ -1,5 +1,3 @@
-onion-extract is a lightweight Python tool for indexing and downloading files (e.g. screenshot) from a given onion URL. 
-
 If you need help setting up Python, refer to my Python set up script in the Ubuntu set up repo.
 
 Download "onion-extract" into your desired folder (e.g. "onion-extract"). Set up Python virtual environment (e.g. env).
