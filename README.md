@@ -20,13 +20,13 @@ python3 -m pip install -r v1.3/requirements.txt
 
 ## Usage
 
-Run the v1.3 script with a `.onion` URL:
+Run v1.3 directly with a `.onion` URL and command-line options. A configuration file is not required:
 
 ```bash
 python3 v1.3/onion-extract.py http://example.onion -o downloads
 ```
 
-The output directory defaults to `downloads`. By default, the tool looks for links ending in `.jpg`, `.png`, `.pdf`, `.zip`, `.txt`, `.docx`, `.xlsx`, or `.pptx`. For example, to preview matching links without downloading them:
+The output directory defaults to `downloads`. By default, the tool looks for `.jpg`, `.png`, `.pdf`, `.zip`, `.txt`, `.docx`, `.xlsx`, and `.pptx` links. For example, to preview matching links without downloading them:
 
 ```bash
 python3 v1.3/onion-extract.py http://example.onion --dry-run
@@ -36,7 +36,7 @@ To choose extensions and adjust the timeout, maximum file size (in MB), or bandw
 
 ```bash
 python3 v1.3/onion-extract.py http://example.onion \
-  --extensions .jpg .png .pdf .docx .xlsx .pptx .zip \
+  --extensions .jpg .png .pdf .docx .xlsx .pptx .zip .txt \
   --timeout 120 \
   --max-size 100 \
   --bandwidth-limit 1048576
@@ -44,9 +44,11 @@ python3 v1.3/onion-extract.py http://example.onion \
 
 Use `--help` to see all command-line options.
 
-## Configuration file
+## Optional configuration file
 
-The default configuration file is `onion-extract-config.json`. Pass `--config PATH` to use another file. Supported keys are `url`, `output`, `extensions`, `timeout`, `max_size` (MB), and `bandwidth_limit` (bytes per second).
+A JSON configuration file is optional. Pass `--config PATH` to use one; the script uses its command-line options and built-in defaults when no config file is specified.
+
+Supported keys are `url`, `output`, `extensions`, `timeout`, `max_size` (MB), and `bandwidth_limit` (bytes per second).
 
 Example:
 
@@ -61,15 +63,23 @@ Example:
 }
 ```
 
-When `url` is provided in the configuration, the script still expects a positional URL argument; that configured URL is used in preference to the positional value.
+For example:
+
+```bash
+python3 v1.3/onion-extract.py http://example.onion --config onion-extract-config.json
+```
+
+When `url` is provided in the configuration, it is used in preference to the positional URL.
 
 ## v1.3 features
 
 - Filters linked files by extension and checks response MIME types.
+- Supports JPG, PNG, PDF, ZIP, TXT, DOCX, XLSX, and PPTX file types.
 - Shows per-download progress bars and computes SHA256 hashes.
 - Avoids overwriting existing filenames by choosing a unique name.
 - Retries selected transient HTTP errors and supports request timeouts.
 - Offers a configurable file-size limit, bandwidth throttling, and dry-run mode.
+- Can run entirely from command-line options without a configuration file.
 - Writes successful downloads to `download_log.txt` and failures to `error_log.txt` in the output directory.
 - Handles Ctrl+C with an exit status of 130.
 
