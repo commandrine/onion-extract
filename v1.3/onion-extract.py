@@ -28,19 +28,16 @@ SAFE_MIME_TYPES = {
     'video/mp4', 'audio/mpeg'
 }
 
+
 def create_tor_session(max_retries=3):
-    """
-    Create a Tor session with connection pooling and retry logic.
-    Enhancement #2: Connection Pooling & Retry Logic
-    """
+    """Create a Tor session with connection pooling and retry logic."""
     session = requests.Session()
     session.proxies = {
         'http': 'socks5h://127.0.0.1:9050',
         'https': 'socks5h://127.0.0.1:9050'
     }
-    session.verify = False  # Disable SSL verification for .onion
-    
-    # Add retry strategy for unstable .onion networks
+    session.verify = False
+
     retry_strategy = Retry(
         total=max_retries,
         status_forcelist=[429, 500, 502, 503, 504],
@@ -52,18 +49,18 @@ def create_tor_session(max_retries=3):
     session.mount("https://", adapter)
     return session
 
+
 def is_valid_file(url, extensions):
     """Check if URL ends with one of the allowed extensions."""
     parsed = urlparse(url)
     return any(parsed.path.lower().endswith(ext) for ext in extensions)
 
+
 def is_onion_url(url):
-    """
-    Verify URL is a .onion address.
-    Enhancement #7: Better URL Validation
-    """
+    """Verify URL is a .onion address."""
     parsed = urlparse(url)
     return parsed.netloc.endswith('.onion')
+
 
 def get_sha256(file_path):
     """Calculate SHA256 hash of a file."""
@@ -73,20 +70,19 @@ def get_sha256(file_path):
             sha256.update(chunk)
     return sha256.hexdigest()
 
+
 def get_unique_filename(dest_folder, filename):
-    """
-    Ensure unique filename by appending incrementing number if needed.
-    Enhancement #1: Duplicate File Handling
-    """
+    """Ensure unique filename by appending incrementing number if needed."""
     path = os.path.join(dest_folder, filename)
     if not os.path.exists(path):
         return path
-    
+
     name, ext = os.path.splitext(filename)
     counter = 1
     while os.path.exists(os.path.join(dest_folder, f"{name}_{counter}{ext}")):
         counter += 1
     return os.path.join(dest_folder, f"{name}_{counter}{ext}")
+
 
 def log_download(dest_folder, info):
     """Log successful download to download_log.txt."""
@@ -99,17 +95,17 @@ def log_download(dest_folder, info):
         log.write(f"  SHA256: {info['hash']}\n")
         log.write("-" * 40 + "\n")
 
+
 def log_error(dest_folder, url, error_msg):
-    """
-    Log errors to error_log.txt.
-    Enhancement #4: Better Error Logging
-    """
+    """Log errors to error_log.txt."""
+    os.makedirs(dest_folder, exist_ok=True)
     log_path = os.path.join(dest_folder, "error_log.txt")
     with open(log_path, 'a') as log:
         timestamp = datetime.utcnow().isoformat()
         log.write(f"{timestamp} UTC - {url}\n")
         log.write(f"  Error: {error_msg}\n")
         log.write("-" * 40 + "\n")
+
 
 def format_size(bytes_val):
     """Convert bytes to human-readable format."""
@@ -119,16 +115,16 @@ def format_size(bytes_val):
         return f"{bytes_val} B"
     elif bytes_val < 1024**2:
         return f"{bytes_val / 1024:.2f} KB"
+    elif bytes_val < 1024**2:
+        return f"{bytes_val / 1024:.2f} KB"
     elif bytes_val < 1024**3:
         return f"{bytes_val / 1024**2:.2f} MB"
     else:
         return f"{bytes_val / 1024**3:.2f} GB"
 
+
 def load_config(config_file):
-    """
-    Load configuration from JSON file.
-    Enhancement #9: Configuration File Support
-    """
+    """Load configuration from JSON file."""
     if os.path.exists(config_file):
         try:
             with open(config_file, 'r') as f:
@@ -138,18 +134,28 @@ def load_config(config_file):
             return {}
     return {}
 
-def download_file(session, url, dest_folder, dry_run=False, timeout=60, 
+
+def parse_content_range(content_range):
+    """Parse a bytes start-end/size Content-Range header."""
+    if not content_range:
+        return None
+    try:
+        unit, range_part = content_range.strip().split(None, 1)
+        if unit.lower() != "bytes":
+            return None
+        bounds, size_text = range_part.rsplit('/', 1)
+        start_text, end_text = bounds.split('-', 1)
+        start = int(start_text)
+        end = int(end_text)
+        total = None if size_text == '*' else int(size_text)
+        return start, end, total
+    except (ValueError, TypeError):
+        return None
+
+
+def download_file(session, url, dest_folder, dry_run=False, timeout=60,
                   max_size=MAX_FILE_SIZE, bandwidth_limit=None):
-    """
-    Download a file from the given URL with enhanced features.
-    
-    Enhancement #1: Duplicate File Handling
-    Enhancement #3: File Size Limits
-    Enhancement #5: Resume Support (Torrent/Resume)
-    Enhancement #8: Bandwidth Throttling
-    Enhancement #10: Progress Bar with tqdm
-    """
-    # Determine the local filename with duplicate handling
+    """Download a file, resuming only verified HTTP 206 partial responses."""
     parsed_url = urlparse(url)
     filename = os.path.basename(parsed_url.path)
     local_filename = get_unique_filename(dest_folder, filename)
@@ -157,16 +163,22 @@ def download_file(session, url, dest_folder, dry_run=False, timeout=60,
     if dry_run:
         print(f"[DRY-RUN] Would download: {url} → {local_filename}")
         return
-    
+
     try:
-        # Check if file partially exists and support resume
-        resume_header = None
-        if os.path.exists(local_filename):
-            resume_header = {'Range': f'bytes={os.path.getsize(local_filename)}-'}
-            response = session.get(url, stream=True, timeout=timeout, headers=resume_header)
+        resume_offset = 0
+        existing_size = os.path.getsize(local_filename) if os.path.exists(local_filename) else 0
+
+        if existing_size:
+            resume_offset = existing_size
+            response = session.get(
+                url,
+                stream=True,
+                timeout=timeout,
+                headers={'Range': f'bytes={resume_offset}-'}
+            )
         else:
             response = session.get(url, stream=True, timeout=timeout)
-        
+
         response.raise_for_status()
 
         content_type = response.headers.get('Content-Type', '').split(';')[0].strip()
@@ -176,37 +188,61 @@ def download_file(session, url, dest_folder, dry_run=False, timeout=60,
             log_error(dest_folder, url, msg)
             return
 
-        # Get total size from headers
-        total_size = response.headers.get('Content-Length')
+        is_resume = False
+        if resume_offset:
+            if response.status_code != 206:
+                raise IOError("Server ignored the resume Range request; refusing to append duplicate data")
+
+            content_range = parse_content_range(response.headers.get('Content-Range'))
+            if content_range is None:
+                raise IOError("Server returned 206 without a valid Content-Range header")
+
+            range_start, range_end, total_size = content_range
+            if range_start != resume_offset:
+                raise IOError(
+                    f"Server returned Content-Range starting at {range_start}, "
+                    f"expected {resume_offset}"
+                )
+            is_resume = True
+        else:
+            total_size = response.headers.get('Content-Length')
+            if total_size is not None:
+                try:
+                    total_size = int(total_size)
+                except (TypeError, ValueError):
+                    total_size = None
+
         if total_size is not None:
-            total_size = int(total_size)
-        
-        # Check file size limit (Enhancement #3)
-        if total_size and total_size > max_size:
-            msg = f"Exceeds size limit ({format_size(total_size)} > {format_size(max_size)})"
-            print(f"[✗] Skipped {url}: {msg}")
-            log_error(dest_folder, url, msg)
-            return
-        
-        total_size_formatted = format_size(total_size) if total_size else "Unknown Size"
-        chunk_size = 8192
-        
+            if total_size > max_size:
+                msg = f"Exceeds size limit ({format_size(total_size)} > {format_size(max_size)})"
+                print(f"[✗] Skipped {url}: {msg}")
+                log_error(dest_folder, url, msg)
+                return
+
+        if is_resume:
+            remaining_size = range_end - range_start + 1
+            if remaining_size != int(response.headers.get('Content-Length', remaining_size)):
+                raise IOError("Content-Length does not match the requested partial response")
+            progress_total = total_size if total_size is not None else resume_offset + remaining_size
+        else:
+            progress_total = total_size
+
+        total_size_formatted = format_size(progress_total)
         print(f"[↓] Downloading {os.path.basename(local_filename)} (Total: {total_size_formatted})...")
 
-        # Use tqdm for progress tracking (Enhancement #10)
-        mode = 'ab' if os.path.exists(local_filename) else 'wb'
+        mode = 'ab' if is_resume else 'wb'
         with open(local_filename, mode) as f:
-            with tqdm(total=total_size, unit='B', unit_scale=True, desc=os.path.basename(local_filename), leave=False) as pbar:
-                for chunk in response.iter_content(chunk_size=chunk_size):
+            with tqdm(total=progress_total, initial=resume_offset if is_resume else 0,
+                      unit='B', unit_scale=True,
+                      desc=os.path.basename(local_filename), leave=False) as pbar:
+                for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
                         f.write(chunk)
                         pbar.update(len(chunk))
-                        
-                        # Bandwidth throttling (Enhancement #8)
+
                         if bandwidth_limit:
                             time.sleep(len(chunk) / bandwidth_limit)
-        
-        # --- Post-download actions ---
+
         file_hash = get_sha256(local_filename)
         timestamp = datetime.utcnow().isoformat()
 
@@ -229,42 +265,39 @@ def download_file(session, url, dest_folder, dry_run=False, timeout=60,
         print(f"[✗] Failed to download {url}: {error_msg}")
         log_error(dest_folder, url, error_msg)
 
-def scrape_onion(url, dest_folder, extensions, dry_run=False, timeout=60, 
+
+def scrape_onion(url, dest_folder, extensions, dry_run=False, timeout=60,
                  max_size=MAX_FILE_SIZE, bandwidth_limit=None):
-    """
-    Scrape an onion site and download files matching the given extensions.
-    Enhancement #7: Better URL Validation
-    """
-    # Validate .onion URL
+    """Scrape an onion site and download files matching the given extensions."""
     if not is_onion_url(url):
         print("[✗] Error: URL must be a .onion address (e.g., http://xyz.onion)")
         return
-    
+
+    os.makedirs(dest_folder, exist_ok=True)
     session = create_tor_session()
     try:
         response = session.get(url, timeout=timeout)
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         links = soup.find_all('a', href=True)
-        os.makedirs(dest_folder, exist_ok=True)
-        
+
         if not links:
             print(f"[!] No links found on {url}")
             return
-        
+
         for link in links:
             file_url = urljoin(url, link['href'])
             if is_valid_file(file_url, extensions):
                 download_file(session, file_url, dest_folder, dry_run, timeout, max_size, bandwidth_limit)
-    
+
     except KeyboardInterrupt:
-        # Handle Ctrl+C gracefully (Enhancement #12)
         print("\n[!] Interrupted by user")
         sys.exit(130)
     except Exception as e:
         error_msg = str(e)
         print(f"[✗] Error accessing {url}: {error_msg}")
         log_error(dest_folder, url, error_msg)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download screenshots and files from an onion URL.")
@@ -276,23 +309,49 @@ if __name__ == "__main__":
     parser.add_argument("--max-size", type=int, default=500, help="Max file size in MB (Enhancement #3)")
     parser.add_argument("--bandwidth-limit", type=float, default=None, help="Bandwidth limit in bytes/second (Enhancement #8)")
     parser.add_argument("--config", default=DEFAULT_CONFIG_FILE, help="Config file path (Enhancement #9)")
-    
+
     args = parser.parse_args()
-    
-    # Load config file if available (Enhancement #9)
     config = load_config(args.config)
-    
-    # Override args with config values if present
+
     url = config.get('url', args.url)
     output = config.get('output', args.output)
     extensions = config.get('extensions', args.extensions)
     timeout = config.get('timeout', args.timeout)
-    max_size = config.get('max_size', args.max_size * 1024 * 1024)  # Convert MB to bytes
+
+    # max_size is defined in megabytes (MB) everywhere: CLI and config.
+    cli_max_size_mb = args.max_size
+    if 'max_size' in config:
+        config_max_size = config['max_size']
+        if not isinstance(config_max_size, (int, float)) or isinstance(config_max_size, bool):
+            print("[!] Warning: Invalid max_size in config, using default/CLI value")
+            max_size_mb = cli_max_size_mb
+        elif config_max_size < 0:
+            print("[!] Warning: max_size cannot be negative, using default/CLI value")
+            max_size_mb = cli_max_size_mb
+        else:
+            max_size_mb = config_max_size
+    else:
+        max_size_mb = cli_max_size_mb
+
+    if not isinstance(timeout, (int, float)) or isinstance(timeout, bool) or timeout <= 0:
+        print("[!] Warning: Invalid timeout in config, using CLI/default value")
+        timeout = args.timeout
+
+    if not isinstance(max_size_mb, (int, float)) or isinstance(max_size_mb, bool) or max_size_mb < 0:
+        print("[!] Warning: Invalid max_size, using 500 MB")
+        max_size_mb = 500
+
+    max_size = int(max_size_mb * 1024 * 1024)
+
     bandwidth_limit = config.get('bandwidth_limit', args.bandwidth_limit)
-    
+    if bandwidth_limit is not None:
+        if not isinstance(bandwidth_limit, (int, float)) or isinstance(bandwidth_limit, bool) or bandwidth_limit <= 0:
+            print("[!] Warning: Invalid bandwidth_limit in config, using CLI/default value")
+            bandwidth_limit = args.bandwidth_limit
+
     try:
         scrape_onion(url, output, extensions, args.dry_run, timeout, max_size, bandwidth_limit)
     except KeyboardInterrupt:
-        # Handle Ctrl+C gracefully (Enhancement #12)
         print("\n[!] Interrupted by user")
         sys.exit(130)
+
